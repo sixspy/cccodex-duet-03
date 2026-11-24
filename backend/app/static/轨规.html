@@ -32,6 +32,12 @@
           <div class="工具条">
             <label>金额容差分 <input id="容差" style="width:100px"/></label>
             <label>站名 <input id="站名" style="width:120px"/></label>
+            <label>同键形态
+              <select id="形态">
+                <option value="汇总">形态甲 · 键汇总</option>
+                <option value="逐笔">形态乙 · 事件逐笔</option>
+              </select>
+            </label>
             <button id="存">保存</button>
           </div>
           <pre class="报" id="报"></pre>
@@ -39,10 +45,13 @@
         <div>
           <h2>口径</h2>
           <ul class="说明">
-            <li>对齐键默认业务键；同键多笔先汇总再比。</li>
+            <li>对齐键默认业务键；同键多笔跑对齐前须择定形态。</li>
+            <li>形态甲：同键金额先加总再比，对齐差一键一行。</li>
+            <li>形态乙：按事件逐笔物化对照，键下多行，读集合按物化包回读。</li>
             <li>容差分内算对齐，否则金额不符。</li>
             <li>仅单边有键 → 对齐差记左缺/右缺，并写入悬账单。</li>
           </ul>
+          <div class="标签行" id="形态牌"></div>
         </div>
       </section>
 
@@ -51,13 +60,27 @@
   <script src="/common.js"></script>
   <script>
 (async () => {
+  const 形名 = { 汇总: "形态甲 · 键汇总", 逐笔: "形态乙 · 事件逐笔" };
   const s = await get("/api/轨规");
+  const g = await get("/api/同键多笔/形态");
   document.getElementById("容差").value = s.金额容差分 || 0;
   document.getElementById("站名").value = s.站名 || "对拍";
+  document.getElementById("形态").value = g.形态 || "汇总";
+  document.getElementById("形态牌").innerHTML =
+    `<span class="标签">当前形态：${形名[g.形态] || "未择定"}</span>
+     <span class="标签">轮次：${g.轮次 || "未跑对齐"}</span>`;
   document.getElementById("报").textContent = JSON.stringify(s, null, 2);
   document.getElementById("存").onclick = async () => {
     const body = { 金额容差分: document.getElementById("容差").value, 站名: document.getElementById("站名").value };
-    document.getElementById("报").textContent = JSON.stringify(await post("/api/轨规", body), null, 2);
+    const 形态 = document.getElementById("形态").value;
+    const 择 = await post("/api/同键多笔/形态", { 形态 });
+    document.getElementById("报").textContent = JSON.stringify({
+      轨规: await post("/api/轨规", body),
+      同键形态: 择,
+    }, null, 2);
+    document.getElementById("形态牌").innerHTML =
+      `<span class="标签">当前形态：${形名[择.形态] || "未择定"}</span>
+       <span class="标签">轮次：${择.轮次 || "未跑对齐"}</span>`;
   };
 })();
 </script>

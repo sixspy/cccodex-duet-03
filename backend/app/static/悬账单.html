@@ -28,8 +28,9 @@
 
       <section class="行卡">
         <h1>悬账单</h1>
-        <p class="说明">对齐后仅单边有键（或需人工处理）的业务键。不是闸对/缝包那种「旁路匣」命名。</p>
+        <p class="说明">对齐后仅单边有键（或需人工处理）的业务键。不是闸对/缝包那种「旁路匣」命名。逐笔形态下同一业务键可能因逐笔缺对位而生成多条悬账。</p>
         <div class="工具条"><button class="次" id="刷">刷新</button></div>
+        <div class="标签行" id="形态牌"></div>
       </section>
       <section class="行卡"><div id="表"></div></section>
 
@@ -38,7 +39,12 @@
   <script src="/common.js"></script>
   <script>
 (async () => {
+  const 形名 = { 汇总: "形态甲 · 键汇总", 逐笔: "形态乙 · 事件逐笔" };
   const paint = async () => {
+    const s = await get("/api/同键多笔/形态");
+    document.getElementById("形态牌").innerHTML =
+      `<span class="标签">当前同键形态：${形名[s.形态] || "未择定"}</span>
+       <span class="标签">轮次：${s.轮次 || "未跑对齐"}</span>`;
     const rows = await get("/api/悬账单");
     document.getElementById("表").innerHTML = 表(
       ["编号","业务键","悬边","金额分","事件编号","原因","时刻"],

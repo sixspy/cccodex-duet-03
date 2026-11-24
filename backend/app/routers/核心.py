@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.services import 目录, 左装载, 右装载, 对齐, 结论, 夹具, 统计, 说明
+from app.modules import 同键多笔汇总
 
 路由 = APIRouter()
 
@@ -51,27 +52,50 @@ def api_左装(体: dict):
 def api_右装(体: dict):
     return 右装载.装一批(体)
 
-@路由.post("/api/左轨/夹具/{名}")
-def api_左夹(名: str):
+@路由.post("/api/左轨/夹具/{name}")
+def api_左夹(name: str):
+    # Starlette 只认 ASCII 路径参数名；URL 形态不变（/api/左轨/夹具/<夹具名>）。
     try:
-        return 左装载.装一批(夹具.读取(名))
+        return 左装载.装一批(夹具.读取(name))
     except FileNotFoundError:
-        raise HTTPException(404, 名)
+        raise HTTPException(404, name)
 
-@路由.post("/api/右轨/夹具/{名}")
-def api_右夹(名: str):
+@路由.post("/api/右轨/夹具/{name}")
+def api_右夹(name: str):
     try:
-        return 右装载.装一批(夹具.读取(名))
+        return 右装载.装一批(夹具.读取(name))
     except FileNotFoundError:
-        raise HTTPException(404, 名)
+        raise HTTPException(404, name)
 
 @路由.post("/api/对齐/跑")
-def api_对齐():
-    return 对齐.跑对齐()
+def api_对齐(体: dict | None = None):
+    return 对齐.跑对齐((体 or {}).get("形态"))
 
 @路由.post("/api/对拍结论/跑")
 def api_结论():
     return 结论.跑一次()
+
+
+@路由.get("/api/同键多笔/形态")
+def api_同键形态():
+    return 同键多笔汇总.当前形态()
+
+@路由.post("/api/同键多笔/形态")
+def api_同键择形(体: dict):
+    return 同键多笔汇总.择定形态((体 or {}).get("形态"))
+
+@路由.get("/api/同键多笔/粒度")
+def api_同键粒度():
+    return 同键多笔汇总.粒度摘要()
+
+@路由.get("/api/同键多笔/物化")
+def api_同键物化():
+    return 同键多笔汇总.物化包列表()
+
+@路由.get("/api/同键多笔/物化/{name}")
+def api_同键物化包(name: str):
+    # Starlette 只认 ASCII 路径参数名；URL 形态 /api/同键多笔/物化/<物化包>。
+    return 同键多笔汇总.物化包回读(name)
 
 
 @路由.get("/api/统计/左命运")
@@ -99,10 +123,13 @@ def api_仓情():
 def api_空桩():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1] / "modules"
+    已实现 = {"同键多笔汇总"}
     out = []
     if root.is_dir():
         for p in sorted(root.iterdir()):
             if p.is_dir() and p.name != "__pycache__" and (p / "__init__.py").is_file():
+                if p.name in 已实现:
+                    continue
                 out.append(p.name)
-    return {"空桩": out, "条数": len(out)}
+    return {"空桩": out, "条数": len(out), "已实现": sorted(已实现)}
 

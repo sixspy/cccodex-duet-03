@@ -13,6 +13,8 @@ def 装一批(体: dict) -> dict:
         报告["明细"].append({"命运": "批次预检", "说明": e})
     conn = 连接()
     try:
+        # 装载与对齐同为写事务：先取写锁，避免补装读锁升级与对齐写入互等。
+        conn.execute("BEGIN IMMEDIATE")
         for ev in 事件:
             行错 = 校验.校验事件(ev)
             if 行错:

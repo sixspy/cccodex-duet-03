@@ -39,6 +39,23 @@ CREATE TABLE IF NOT EXISTS 对齐差 (
   右金额分 INTEGER,
   差型 TEXT NOT NULL,
   说明 TEXT NOT NULL DEFAULT '',
+  时刻 TEXT NOT NULL,
+  粒度 TEXT NOT NULL DEFAULT '汇总',
+  事件编号 TEXT NOT NULL DEFAULT '',
+  物化包 TEXT NOT NULL DEFAULT '',
+  轮次 TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS 对齐差物化 (
+  编号 INTEGER PRIMARY KEY AUTOINCREMENT,
+  物化包 TEXT NOT NULL,
+  轮次 TEXT NOT NULL,
+  业务键 TEXT NOT NULL,
+  左事件 TEXT NOT NULL DEFAULT '',
+  右事件 TEXT NOT NULL DEFAULT '',
+  左金额分 INTEGER,
+  右金额分 INTEGER,
+  差型 TEXT NOT NULL,
+  说明 TEXT NOT NULL DEFAULT '',
   时刻 TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS 悬账单 (
@@ -73,9 +90,33 @@ def 此刻() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _补列(conn) -> None:
+    """旧库补列：对齐差新增粒度/事件编号/物化包/轮次，保持只读兼容。"""
+    现有 = {r["name"] for r in conn.execute("PRAGMA table_info(对齐差)").fetchall()}
+    for 名, 定义 in (
+        ("粒度", "TEXT NOT NULL DEFAULT '汇总'"),
+        ("事件编号", "TEXT NOT NULL DEFAULT ''"),
+        ("物化包", "TEXT NOT NULL DEFAULT ''"),
+        ("轮次", "TEXT NOT NULL DEFAULT ''"),
+    ):
+        if 名 not in 现有:
+            conn.execute(f"ALTER TABLE 对齐差 ADD COLUMN {名} {定义}")
+
+
+建索引 = """
+CREATE INDEX IF NOT EXISTS 对齐差物化_包 ON 对齐差物化(物化包);
+CREATE INDEX IF NOT EXISTS 对齐差物化_轮次 ON 对齐差物化(轮次);
+CREATE INDEX IF NOT EXISTS 对齐差_物化包 ON 对齐差(物化包);
+CREATE INDEX IF NOT EXISTS 对齐差_轮次 ON 对齐差(轮次);
+"""
+
+
 def 初始化库() -> None:
     conn = 连接()
     conn.executescript(建表)
+    _补列(conn)
+    # 索引须在补列之后建：旧库先补 物化包/轮次 列，否则建索引会报缺列。
+    conn.executescript(建索引)
     if conn.execute("SELECT COUNT(*) AS c FROM 轨规").fetchone()["c"] == 0:
         for k, v in {
             "站名": "对拍",

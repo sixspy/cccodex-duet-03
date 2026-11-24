@@ -28,11 +28,12 @@
 
       <section class="行卡">
         <h1>对拍结论</h1>
-        <p class="说明">核对悬账与对齐差是否自洽。先跑对齐再跑结论。</p>
+        <p class="说明">核对悬账与对齐差是否自洽。先跑对齐再跑结论。结论会记录当次同键形态；逐笔形态下一键可有多行差，悬边按差型集合核验。</p>
         <div class="工具条">
           <button id="跑">跑结论</button>
           <button class="次" id="刷">刷新历史</button>
         </div>
+        <div class="标签行" id="形态牌"></div>
         <pre class="报" id="报"></pre>
       </section>
       <section class="行卡"><div id="表"></div></section>
@@ -42,7 +43,12 @@
   <script src="/common.js"></script>
   <script>
 (async () => {
+  const 形名 = { 汇总: "形态甲 · 键汇总", 逐笔: "形态乙 · 事件逐笔" };
   const paint = async () => {
+    const s = await get("/api/同键多笔/形态");
+    document.getElementById("形态牌").innerHTML =
+      `<span class="标签">当前同键形态：${形名[s.形态] || "未择定"}</span>
+       <span class="标签">轮次：${s.轮次 || "未跑对齐"}</span>`;
     const rows = await get("/api/对拍结论");
     document.getElementById("表").innerHTML = 表(
       ["编号","时刻","左","右","对齐","悬账","通过","说明"],

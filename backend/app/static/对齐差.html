@@ -28,32 +28,107 @@
 
       <section class="行卡">
         <h1>对齐差表</h1>
-        <p class="说明">按业务键汇总左右金额。差型：对齐 / 金额不符 / 左缺 / 右缺。跑对齐会重算并重写悬账单。</p>
+        <p class="说明">按业务键对齐左右金额。跑对齐前先择定同键多笔形态：形态甲「汇总」同键金额先加总再比、一键一行；形态乙「逐笔」按事件编号逐笔物化对照、键下多行。差表粒度与当次形态同票。</p>
         <div class="工具条">
-          <button id="跑">跑对齐</button>
+          <label>同键形态
+            <select id="形态">
+              <option value="汇总">形态甲 · 键汇总（一键一行）</option>
+              <option value="逐笔">形态乙 · 事件逐笔（键下多行）</option>
+            </select>
+          </label>
+          <button id="跑">按形态跑对齐</button>
           <button class="次" id="刷">刷新</button>
         </div>
         <pre class="报" id="报"></pre>
       </section>
-      <section class="行卡"><div id="表"></div></section>
+
+      <section class="行卡">
+        <h2>同键粒度（只读）</h2>
+        <p class="说明">每业务键给出左笔数、右笔数、差行数、形态标记与 valid。汇总形态应一键一行；逐笔形态差行数应等于键下最多一侧笔数。</p>
+        <div id="粒度牌"></div>
+        <div id="粒度"></div>
+      </section>
+
+      <section class="行卡">
+        <h2>对齐差行</h2>
+        <p class="说明">差型：对齐 / 金额不符 / 左缺 / 右缺。点逐笔行的「物化包」可在下方按包回读。</p>
+        <div id="表"></div>
+      </section>
+
+      <section class="行卡">
+        <h2>逐笔物化详情</h2>
+        <p class="说明" id="详情牌">形态乙读集合按物化包回读，与形态甲汇总口径不同。点上方差行的物化包查看。</p>
+        <div id="详情"></div>
+      </section>
 
     </main>
   </div>
   <script src="/common.js"></script>
   <script>
 (async () => {
-  const paint = async () => {
-    const rows = await get("/api/对齐差");
-    document.getElementById("表").innerHTML = 表(
-      ["编号","业务键","左金额分","右金额分","差型","说明","时刻"],
-      rows,
-      r => `<td>${r.编号}</td><td>${r.业务键}</td><td>${r.左金额分 ?? "-"}</td><td>${r.右金额分 ?? "-"}</td>
-        <td>${徽(r.差型)}</td><td>${r.说明}</td><td>${r.时刻}</td>`
+  const 形徽 = v => {
+    if (v === "汇总") return `<span class="徽 灰">形态甲 · 汇总</span>`;
+    if (v === "逐笔") return `<span class="徽 绿">形态乙 · 逐笔</span>`;
+    if (v === "混合") return `<span class="徽 红">混合 · 失真</span>`;
+    return `<span class="徽 灰">未择定</span>`;
+  };
+
+  const 刷形 = async () => {
+    const s = await get("/api/同键多笔/形态");
+    if (s.形态) document.getElementById("形态").value = s.形态;
+    return s;
+  };
+
+  const 画粒度 = async () => {
+    const g = await get("/api/同键多笔/粒度");
+    document.getElementById("粒度牌").innerHTML = [
+      ["当前形态", g.形态 ? 形徽(g.形态) : 形徽("")],
+      ["轮次", g.轮次 || "未跑对齐"],
+      ["键数", g.总数],
+      ["有效键", g.有效键数],
+      ["无效键", g.无效键数],
+      ["整体 valid", 徽(g.valid ? 1 : 0)],
+    ].map(([k, v]) => `<span class="标签">${k}：${v}</span>`).join("");
+    document.getElementById("粒度").innerHTML = 表(
+      ["业务键","左笔数","右笔数","差行数","形态标记","valid"],
+      g.键,
+      r => `<td>${r.业务键}</td><td>${r.左笔数}</td><td>${r.右笔数}</td>
+        <td>${r.差行数}</td><td>${形徽(r.形态标记)}</td><td>${徽(r.valid ? 1 : 0)}</td>`
     );
   };
+
+  const 画表 = async () => {
+    const rows = await get("/api/对齐差");
+    document.getElementById("表").innerHTML = 表(
+      ["编号","业务键","左金额分","右金额分","差型","粒度","说明","物化包","时刻"],
+      rows,
+      r => `<td>${r.编号}</td><td>${r.业务键}</td><td>${r.左金额分 ?? "-"}</td><td>${r.右金额分 ?? "-"}</td>
+        <td>${徽(r.差型)}</td><td>${形徽(r.粒度)}</td><td>${r.说明}</td>
+        <td>${r.物化包 ? `<a href="#" data-包="${r.物化包}">${r.物化包}</a>` : "-"}</td><td>${r.时刻}</td>`
+    );
+    for (const a of document.querySelectorAll("#表 a[data-包]")) {
+      a.onclick = async ev => {
+        ev.preventDefault();
+        const 包 = a.getAttribute("data-包");
+        const d = await get("/api/同键多笔/物化/" + encodeURIComponent(包));
+        document.getElementById("详情牌").innerHTML = `物化包 <b>${d.物化包}</b>：${d.条数} 行（按包回读）`;
+        document.getElementById("详情").innerHTML = 表(
+          ["编号","业务键","左事件","右事件","左金额分","右金额分","差型","说明"],
+          d.行,
+          r => `<td>${r.编号}</td><td>${r.业务键}</td><td>${r.左事件 || "-"}</td><td>${r.右事件 || "-"}</td>
+            <td>${r.左金额分 ?? "-"}</td><td>${r.右金额分 ?? "-"}</td><td>${徽(r.差型)}</td><td>${r.说明}</td>`
+        );
+      };
+    }
+  };
+
+  const paint = async () => { await 刷形(); await 画粒度(); await 画表(); };
   await paint();
   document.getElementById("跑").onclick = async () => {
-    document.getElementById("报").textContent = JSON.stringify(await post("/api/对齐/跑"), null, 2);
+    const 形态 = document.getElementById("形态").value;
+    document.getElementById("报").textContent = JSON.stringify(await post("/api/对齐/跑", { 形态 }), null, 2);
+    document.getElementById("详情").innerHTML = "";
+    document.getElementById("详情牌").textContent = "点上方逐笔差行的物化包查看逐笔物化详情。";
     await paint();
   };
   document.getElementById("刷").onclick = paint;

@@ -61,6 +61,7 @@ def 概览() -> dict:
         "骨架": g.get("骨架", ""),
         "皮": g.get("皮", ""),
         "去皮": g.get("去皮", ""),
+        "同键形态": g.get("同键形态", ""),
         "左笔数": conn.execute("SELECT COUNT(*) AS c FROM 左轨流水").fetchone()["c"],
         "右笔数": conn.execute("SELECT COUNT(*) AS c FROM 右轨流水").fetchone()["c"],
         "对齐差数": conn.execute("SELECT COUNT(*) AS c FROM 对齐差").fetchone()["c"],
